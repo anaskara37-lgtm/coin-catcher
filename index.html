@@ -34,7 +34,8 @@ button:active{transform:scale(.94)}
 <script>
 let c = document.getElementById("c");
 let g = c.getContext("2d");
-let px, items, sc, lives, over, t, frame, flash = 0, best = 0;
+let px, items, sc, lives, frame, flash, magnetT;
+let state = "menu", overAt = 0, best = 0;
 try { best = Number(localStorage.getItem("cbest")) || 0; } catch (e) {}
 
 let themes = [
@@ -72,18 +73,27 @@ function beep(freq, dur, type) {
   } catch (e) {}
 }
 
-function start() {
-  clearInterval(t);
+function reset() {
   px = 125;
   items = [];
   sc = 0;
   lives = 3;
-  over = false;
   frame = 0;
   flash = 0;
+  magnetT = 0;
+}
+
+function begin() {
+  reset();
+  state = "play";
+  beep(660, 0.08, "square");
   show("جمع 🪙 وتجنب 💣");
-  draw();
-  t = setInterval(step, 20);
+}
+
+function tryStart() {
+  if (state === "play") return;
+  if (state === "over" && Date.now() - overAt < 600) return;
+  begin();
 }
 
 function show(m) {
@@ -95,38 +105,40 @@ function show(m) {
 }
 
 function go(d) {
+  if (state !== "play") { tryStart(); return; }
   px = Math.max(0, Math.min(250, px + d));
 }
 
 function moveTo(clientX) {
   let r = c.getBoundingClientRect();
   let x = (clientX - r.left) * (300 / r.width);
-  px = Math.max(0, Math.min(250, x - 25));
+  px = Math.max(0, Math.min(250, x - 21));
 }
 
 c.addEventListener("touchstart", function (e) {
   e.preventDefault();
-  if (over) start();
+  if (state !== "play") tryStart();
   else moveTo(e.touches[0].clientX);
 }, { passive: false });
 
 c.addEventListener("touchmove", function (e) {
   e.preventDefault();
-  moveTo(e.touches[0].clientX);
+  if (state === "play") moveTo(e.touches[0].clientX);
 }, { passive: false });
 
 c.addEventListener("click", function () {
-  if (over) start();
+  tryStart();
 });
 
 document.addEventListener("keydown", function (e) {
   if (e.key === "ArrowLeft") go(-30);
   if (e.key === "ArrowRight") go(30);
+  if (e.key === "Enter" || e.key === " ") tryStart();
 });
 
 function end() {
-  over = true;
-  clearInterval(t);
+  state = "over";
+  overAt = Date.now();
   beep(110, 0.6, "sawtooth");
   if (sc > best) {
     best = sc;
@@ -135,10 +147,55 @@ function end() {
   show("خسرتي فالمستوى " + level() + "! كليكي على اللوحة باش تعاود");
 }
 
+function play() {
+  let speed = 1.5 + level() * 0.6;
+
+  if (frame % Math.max(18, 40 - level() * 3) === 0) {
+    let r = Math.random();
+    let k = r < 0.28 ? "bomb" : r < 0.33 ? "magnet" : r > 0.92 ? "gold" : "coin";
+    items.push({ x: Math.random() * 270, y: -24, k: k });
+  }
+
+  if (magnetT > 0) {
+    magnetT--;
+    items.forEach(function (it) {
+      if (it.k === "coin" || it.k === "gold") {
+        it.x = it.x + (px + 11 - it.x) * 0.07;
+      }
+    });
+  }
+
+  items.forEach(function (it) { it.y = it.y + speed; });
+
+  items = items.filter(function (it) {
+    let caught = it.y + 24 >= 365 && it.y <= 392 && it.x + 24 > px && it.x < px + 46;
+    if (caught) {
+      if (it.k === "bomb") {
+        lives--;
+        beep(150, 0.3, "sawtooth");
+        show();
+      } else if (it.k === "magnet") {
+        magnetT = 400;
+        beep(1000, 0.25, "triangle");
+        show("مغناطيس! 🧲");
+      } else {
+        let before = level();
+        sc = sc + (it.k === "gold" ? 5 : 1);
+        if (level() > before) flash = 25;
+        beep(it.k === "gold" ? 1400 : 880, it.k === "gold" ? 0.25 : 0.12, "square");
+        show(level() > before ? "مستوى جديد " + level() + "! 🔥" : (it.k === "gold" ? "+5 ⭐" : ""));
+      }
+      return false;
+    }
+    return it.y < 400;
+  });
+
+  if (lives <= 0) end();
+}
+
 function step() {
   frame++;
   if (flash > 0) flash--;
-  let speed = 1.5 + level() * 0.6;
 
   stars.forEach(function (s) {
     s.y = s.y + s.v;
@@ -148,37 +205,13 @@ function step() {
     }
   });
 
-  if (frame % Math.max(18, 40 - level() * 3) === 0) {
-    let r = Math.random();
-    items.push({ x: Math.random() * 270, y: -24, bomb: r < 0.3, gold: r > 0.92 });
-  }
-
-  items.forEach(function (it) { it.y = it.y + speed; });
-
-  items = items.filter(function (it) {
-    let caught = it.y + 24 >= 365 && it.y <= 392 && it.x + 24 > px && it.x < px + 46;
-    if (caught) {
-      if (it.bomb) {
-        lives--;
-        beep(150, 0.3, "sawtooth");
-        show();
-      } else {
-        let before = level();
-        sc = sc + (it.gold ? 5 : 1);
-        if (level() > before) flash = 25;
-        beep(it.gold ? 1400 : 880, it.gold ? 0.25 : 0.12, "square");
-        show(level() > before ? "مستوى جديد " + level() + "! 🔥" : (it.gold ? "+5 ⭐" : ""));
-      }
-      return false;
-    }
-    return it.y < 400;
-  });
-
-  if (lives <= 0) end();
+  if (state === "play") play();
   draw();
 }
 
 function draw() {
+  g.direction = "ltr";
+  g.textAlign = "left";
   let th = themes[(level() - 1) % themes.length];
   let bg = g.createLinearGradient(0, 0, 0, 400);
   bg.addColorStop(0, th[0]);
@@ -206,11 +239,19 @@ function draw() {
 
   g.font = "28px serif";
   items.forEach(function (it) {
-    g.fillText(it.bomb ? "💣" : it.gold ? "⭐" : "🪙", it.x, it.y + 24);
+    let e = it.k === "bomb" ? "💣" : it.k === "magnet" ? "🧲" : it.k === "gold" ? "⭐" : "🪙";
+    g.fillText(e, it.x, it.y + 24);
   });
 
   g.font = "42px serif";
   g.fillText("🧺", px, 395);
+
+  if (magnetT > 0) {
+    g.font = "20px serif";
+    g.fillText("🧲", 8, 26);
+    g.fillStyle = "#FFD54F";
+    g.fillRect(36, 14, magnetT / 400 * 70, 8);
+  }
 
   if (flash > 0) {
     g.globalAlpha = flash / 50;
@@ -218,9 +259,27 @@ function draw() {
     g.fillRect(0, 0, 300, 400);
     g.globalAlpha = 1;
   }
+
+  if (state === "menu") {
+    g.fillStyle = "rgba(0,0,0,0.6)";
+    g.fillRect(0, 0, 300, 400);
+    g.textAlign = "center";
+    g.fillStyle = "#FFFFFF";
+    g.font = "bold 30px Arial";
+    g.fillText("صيد العملات", 150, 110);
+    g.font = "22px Arial";
+    g.fillText("🪙 +1     ⭐ +5", 150, 175);
+    g.fillText("🧲 مغناطيس", 150, 215);
+    g.fillText("💣 تجنبها", 150, 255);
+    g.fillStyle = "#FFD54F";
+    g.font = "bold 24px Arial";
+    g.fillText("اضغط للبدء", 150, 340);
+  }
 }
 
-start();
+reset();
+show("اضغط على اللوحة للبدء");
+setInterval(step, 20);
 </script>
 </body>
 </html>
