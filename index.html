@@ -46,8 +46,8 @@ let themes = [
 ];
 
 let stars = [];
-for (let i = 0; i < 30; i++) {
-  stars.push({ x: Math.random() * 300, y: Math.random() * 400, r: Math.random() * 1.5 + 0.5, v: Math.random() * 0.5 + 0.15 });
+for (let i = 0; i < 40; i++) {
+  stars.push({ x: Math.random() * 300, y: Math.random() * 400, r: Math.random() * 1.5 + 0.8, v: Math.random() * 0.5 + 0.15 });
 }
 
 function level() {
@@ -183,23 +183,26 @@ function draw() {
   let bg = g.createLinearGradient(0, 0, 0, 400);
   bg.addColorStop(0, th[0]);
   bg.addColorStop(1, th[1]);
+  g.globalAlpha = 1;
   g.fillStyle = bg;
   g.fillRect(0, 0, 300, 400);
 
-  g.font = "34px serif";
-  g.fillText(th[2], 245, 45);
-
   g.fillStyle = th[3];
   stars.forEach(function (s) {
-    g.globalAlpha = 0.3 + 0.6 * Math.abs(Math.sin(frame / 25 + s.x));
+    g.globalAlpha = 0.35 + 0.6 * Math.abs(Math.sin(frame / 25 + s.x));
     g.beginPath();
     g.arc(s.x, s.y, s.r, 0, 7);
     g.fill();
   });
-  g.globalAlpha = 1;
 
-  g.fillStyle = "rgba(255,255,255,0.12)";
+  g.globalAlpha = 0.18;
+  g.fillStyle = "#FFFFFF";
   g.fillRect(0, 396, 300, 4);
+
+  g.globalAlpha = 1;
+  g.fillStyle = "#FFFFFF";
+  g.font = "34px serif";
+  g.fillText(th[2], 245, 45);
 
   g.font = "28px serif";
   items.forEach(function (it) {
