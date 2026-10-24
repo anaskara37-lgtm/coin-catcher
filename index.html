@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>صيد العملات</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh;padding:12px;background:linear-gradient(#2C5364,#0F2027);color:#fff;font-family:system-ui,-apple-system,"Segoe UI",Arial,sans-serif;text-align:center}
+h1{margin:6px 0;font-size:1.7rem}
+.bar{display:flex;flex-wrap:wrap;justify-content:center;gap:6px 16px;margin:8px 0;font-size:1.05rem}
+canvas{display:block;margin:auto;width:min(92vw,340px);height:auto;aspect-ratio:3/4;touch-action:none;border-radius:16px;box-shadow:0 0 20px rgba(255,213,79,.35)}
+#msg{min-height:1.6em;margin:8px 0;color:#FFD54F;font-weight:bold}
+.btns{direction:ltr}
+button{font-size:1.5rem;padding:10px 28px;margin:0 6px;border:0;border-radius:14px;background:#FFD54F;color:#1B1B1B;cursor:pointer}
+button:active{transform:scale(.94)}
+</style>
+</head>
+<body>
+<h1>🪙 صيد العملات</h1>
+<div class="bar">
+  <span>المستوى: <b id="lv">1</b></span>
+  <span>النقاط: <b id="sc">0</b></span>
+  <span>أحسن نتيجة: <b id="best">0</b></span>
+  <span id="hearts">❤️❤️❤️</span>
+</div>
+<canvas id="c" width="300" height="400"></canvas>
+<p id="msg"></p>
+<div class="btns">
+  <button onclick="go(-40)">⬅️</button>
+  <button onclick="go(40)">➡️</button>
+</div>
+
+<script>
+let c = document.getElementById("c");
+let g = c.getContext("2d");
+let px, items, sc, lives, over, t, frame, best = 0;
+try { best = Number(localStorage.getItem("cbest")) || 0; } catch (e) {}
+
+let colors = [
+  ["#1F3A5F", "#0B1A2E"],
+  ["#2E4A2F", "#0F1F10"],
+  ["#5A2E5F", "#1F0B2E"],
+  ["#5F3A1F", "#2E1A0B"],
+  ["#1F5F5A", "#0B2E2B"]
+];
+
+function level() {
+  return Math.floor(sc / 10) + 1;
+}
+
+let ac;
+function beep(freq, dur, type) {
+  try {
+    if (!ac) ac = new (window.AudioContext || window.webkitAudioContext)();
+    if (ac.state === "suspended") ac.resume();
+    let o = ac.createOscillator();
+    let v = ac.createGain();
+    o.type = type || "sine";
+    o.frequency.value = freq;
+    v.gain.setValueAtTime(0.15, ac.currentTime);
+    v.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + dur);
+    o.connect(v);
+    v.connect(ac.destination);
+    o.start();
+    o.stop(ac.currentTime + dur);
+  } catch (e) {}
+}
+
+function start() {
+  clearInterval(t);
+  px = 125;
+  items = [];
+  sc = 0;
+  lives = 3;
+  over = false;
+  frame = 0;
+  show("جمع 🪙 وتجنب 💣");
+  t = setInterval(step, 20);
+}
+
+function show(m) {
+  document.getElementById("lv").textContent = level();
+  document.getElementById("sc").textContent = sc;
+  document.getElementById("best").textContent = best;
+  document.getElementById("hearts").textContent = "❤️".repeat(lives) + "🖤".repeat(3 - lives);
+  document.getElementById("msg").textContent = m || "";
+}
+
+function go(d) {
+  px = Math.max(0, Math.min(250, px + d));
+}
+
+function moveTo(clientX) {
+  let r = c.getBoundingClientRect();
+  let x = (clientX - r.left) * (300 / r.width);
+  px = Math.max(0, Math.min(250, x - 25));
+}
+
+c.addEventListener("touchstart", function (e) {
+  e.preventDefault();
+  if (over) start();
+  else moveTo(e.touches[0].clientX);
+}, { passive: false });
+
+c.addEventListener("touchmove", function (e) {
+  e.preventDefault();
+  moveTo(e.touches[0].clientX);
+}, { passive: false });
+
+c.addEventListener("click", function () {
+  if (over) start();
+});
+
+document.addEventListener("keydown", function (e) {
+  if (e.key === "ArrowLeft") go(-30);
+  if (e.key === "ArrowRight") go(30);
+});
+
+function end() {
+  over = true;
+  clearInterval(t);
+  beep(110, 0.6, "sawtooth");
+  if (sc > best) {
+    best = sc;
+    try { localStorage.setItem("cbest", String(best)); } catch (e) {}
+  }
+  show("خسرتي فالمستوى " + level() + "! كليكي على اللوحة باش تعاود");
+}
+
+function step() {
+  frame++;
+  let speed = 1.5 + level() * 0.6;
+
+  if (frame % Math.max(18, 40 - level() * 3) === 0) {
+    let r = Math.random();
+    items.push({ x: Math.random() * 270, y: -24, bomb: r < 0.3, gold: r > 0.92 });
+  }
+
+  items.forEach(function (it) { it.y = it.y + speed; });
+
+  items = items.filter(function (it) {
+    let caught = it.y + 24 >= 365 && it.y <= 392 && it.x + 24 > px && it.x < px + 46;
+    if (caught) {
+      if (it.bomb) {
+        lives--;
+        beep(150, 0.3, "sawtooth");
+        show();
+      } else {
+        let before = level();
+        sc = sc + (it.gold ? 5 : 1);
+        beep(it.gold ? 1400 : 880, it.gold ? 0.25 : 0.12, "square");
+        show(level() > before ? "مستوى جديد " + level() + "! 🔥" : (it.gold ? "+5 ⭐" : ""));
+      }
+      return false;
+    }
+    return it.y < 400;
+  });
+
+  if (lives <= 0) end();
+  draw();
+}
+
+function draw() {
+  let col = colors[(level() - 1) % colors.length];
+  let bg = g.createLinearGradient(0, 0, 0, 400);
+  bg.addColorStop(0, col[0]);
+  bg.addColorStop(1, col[1]);
+  g.fillStyle = bg;
+  g.fillRect(0, 0, 300, 400);
+
+  g.font = "28px serif";
+  items.forEach(function (it) {
+    g.fillText(it.bomb ? "💣" : it.gold ? "⭐" : "🪙", it.x, it.y + 24);
+  });
+
+  g.font = "42px serif";
+  g.fillText("🧺", px, 395);
+}
+
+start();
+</script>
+</body>
+</html>
