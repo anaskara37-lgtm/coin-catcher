@@ -34,16 +34,21 @@ button:active{transform:scale(.94)}
 <script>
 let c = document.getElementById("c");
 let g = c.getContext("2d");
-let px, items, sc, lives, over, t, frame, best = 0;
+let px, items, sc, lives, over, t, frame, flash = 0, best = 0;
 try { best = Number(localStorage.getItem("cbest")) || 0; } catch (e) {}
 
-let colors = [
-  ["#1F3A5F", "#0B1A2E"],
-  ["#2E4A2F", "#0F1F10"],
-  ["#5A2E5F", "#1F0B2E"],
-  ["#5F3A1F", "#2E1A0B"],
-  ["#1F5F5A", "#0B2E2B"]
+let themes = [
+  ["#1F3A5F", "#0B1A2E", "🌙", "#FFFFFF"],
+  ["#2E4A2F", "#0F1F10", "🌕", "#C6F36B"],
+  ["#5A2E5F", "#1F0B2E", "🪐", "#FFB3E6"],
+  ["#5F3A1F", "#2E1A0B", "☀️", "#FFD08A"],
+  ["#1F5F5A", "#0B2E2B", "🌠", "#9FFFF0"]
 ];
+
+let stars = [];
+for (let i = 0; i < 30; i++) {
+  stars.push({ x: Math.random() * 300, y: Math.random() * 400, r: Math.random() * 1.5 + 0.5, v: Math.random() * 0.5 + 0.15 });
+}
 
 function level() {
   return Math.floor(sc / 10) + 1;
@@ -75,7 +80,9 @@ function start() {
   lives = 3;
   over = false;
   frame = 0;
+  flash = 0;
   show("جمع 🪙 وتجنب 💣");
+  draw();
   t = setInterval(step, 20);
 }
 
@@ -130,7 +137,16 @@ function end() {
 
 function step() {
   frame++;
+  if (flash > 0) flash--;
   let speed = 1.5 + level() * 0.6;
+
+  stars.forEach(function (s) {
+    s.y = s.y + s.v;
+    if (s.y > 400) {
+      s.y = 0;
+      s.x = Math.random() * 300;
+    }
+  });
 
   if (frame % Math.max(18, 40 - level() * 3) === 0) {
     let r = Math.random();
@@ -149,6 +165,7 @@ function step() {
       } else {
         let before = level();
         sc = sc + (it.gold ? 5 : 1);
+        if (level() > before) flash = 25;
         beep(it.gold ? 1400 : 880, it.gold ? 0.25 : 0.12, "square");
         show(level() > before ? "مستوى جديد " + level() + "! 🔥" : (it.gold ? "+5 ⭐" : ""));
       }
@@ -162,12 +179,27 @@ function step() {
 }
 
 function draw() {
-  let col = colors[(level() - 1) % colors.length];
+  let th = themes[(level() - 1) % themes.length];
   let bg = g.createLinearGradient(0, 0, 0, 400);
-  bg.addColorStop(0, col[0]);
-  bg.addColorStop(1, col[1]);
+  bg.addColorStop(0, th[0]);
+  bg.addColorStop(1, th[1]);
   g.fillStyle = bg;
   g.fillRect(0, 0, 300, 400);
+
+  g.font = "34px serif";
+  g.fillText(th[2], 245, 45);
+
+  g.fillStyle = th[3];
+  stars.forEach(function (s) {
+    g.globalAlpha = 0.3 + 0.6 * Math.abs(Math.sin(frame / 25 + s.x));
+    g.beginPath();
+    g.arc(s.x, s.y, s.r, 0, 7);
+    g.fill();
+  });
+  g.globalAlpha = 1;
+
+  g.fillStyle = "rgba(255,255,255,0.12)";
+  g.fillRect(0, 396, 300, 4);
 
   g.font = "28px serif";
   items.forEach(function (it) {
@@ -176,6 +208,13 @@ function draw() {
 
   g.font = "42px serif";
   g.fillText("🧺", px, 395);
+
+  if (flash > 0) {
+    g.globalAlpha = flash / 50;
+    g.fillStyle = "#FFFFFF";
+    g.fillRect(0, 0, 300, 400);
+    g.globalAlpha = 1;
+  }
 }
 
 start();
